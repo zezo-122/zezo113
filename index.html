@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>بوابة السائق | المهام الذكية</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --main-color: #4361ee;
+            --accent-color: #ff9f1c;
+            --bg-color: #f8f9fa;
+            --success: #2ec4b6;
+        }
+        * { box-sizing: border-box; font-family: 'Cairo', sans-serif; }
+        body { background: var(--bg-color); margin: 0; padding: 15px; }
+
+        /* الأنيميشن */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .container { max-width: 480px; margin: auto; animation: fadeIn 0.5s ease-out; }
+
+        /* كارت تسجيل الدخول */
+        .login-card {
+            background: white; padding: 40px 20px; border-radius: 25px;
+            box-shadow: 0 10px 30px rgba(67, 97, 238, 0.15); text-align: center;
+            margin-top: 60px; border: 1px solid #eee;
+        }
+        .login-card h2 { color: var(--main-color); margin-bottom: 5px; }
+        input {
+            width: 100%; padding: 15px; margin: 20px 0; border: 2px solid #e0e0e0;
+            border-radius: 15px; font-size: 1.1rem; text-align: center; transition: 0.3s;
+        }
+        input:focus { border-color: var(--main-color); outline: none; box-shadow: 0 0 10px rgba(67,97,238,0.1); }
+        .btn-login {
+            width: 100%; padding: 15px; background: var(--main-color); color: white;
+            border: none; border-radius: 15px; font-weight: bold; cursor: pointer; font-size: 1.1rem;
+        }
+
+        /* واجهة المهام */
+        #driverInterface { display: none; }
+        .welcome-bar {
+            background: var(--main-color); color: white; padding: 20px;
+            border-radius: 20px; margin-bottom: 25px; display: flex;
+            justify-content: space-between; align-items: center;
+            box-shadow: 0 5px 15px rgba(67, 97, 238, 0.3);
+        }
+
+        /* كارت الطلب */
+        .order-card {
+            background: white; border-radius: 20px; padding: 20px;
+            margin-bottom: 20px; border-right: 8px solid var(--accent-color);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05); animation: fadeIn 0.4s ease-out;
+            position: relative; overflow: hidden;
+        }
+        .order-card.completed { border-right-color: #ccc; opacity: 0.8; }
+        .order-card.completed::after {
+            content: "تم التوصيل"; position: absolute; top: 10px; left: -30px;
+            background: #ccc; color: white; padding: 5px 40px; transform: rotate(-45deg); font-size: 0.7rem;
+        }
+
+        .info-row { margin: 12px 0; display: flex; align-items: center; gap: 10px; font-size: 1rem; color: #444; }
+        .info-row b { color: var(--main-color); min-width: 60px; }
+
+        .btn-group { display: flex; gap: 10px; margin-top: 20px; }
+        .btn-action {
+            flex: 1; padding: 12px; border: none; border-radius: 12px;
+            font-weight: bold; cursor: pointer; text-decoration: none; text-align: center; font-size: 0.95rem;
+        }
+        .btn-tel { background: #e7f0ff; color: var(--main-color); }
+        .btn-finish { background: var(--success); color: white; }
+        .btn-finish:disabled { background: #eee; color: #999; }
+
+        .status-pill {
+            display: inline-block; padding: 4px 12px; border-radius: 10px;
+            font-size: 0.8rem; font-weight: bold; background: #fff3e0; color: #ff9800;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="loginBox" class="login-card">
+        <div style="font-size: 50px; margin-bottom: 10px;">🛺</div>
+        <h2>خاصه بالسائق</h2>
+        <p style="color: #777;">أدخل الكود السري لبدء استقبال الطلبات</p>
+        <input type="number" id="driverCode" placeholder="كود السائق (4 أرقام)">
+        <button class="btn-login" onclick="loginDriver()">ابدأ العمل الآن</button>
+        <p id="errorMsg" style="color: #e63946; display: none; margin-top: 15px;">❌ الكود غير صحيح!</p>
+    </div>
+
+    <div id="driverInterface">
+        <div class="welcome-bar">
+            <div>
+                <small style="opacity: 0.8; display: block;">مرحباً بك،</small>
+                <b id="driverName" style="font-size: 1.2rem;">السائق</b>
+            </div>
+            <button onclick="location.reload()" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 15px; border-radius: 10px; cursor: pointer;">خروج</button>
+        </div>
+
+        <h4 style="color: #333; margin-bottom: 15px;">المهمة الحالية:</h4>
+        <div id="ordersList"></div>
+    </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
+<script>
+    // إعدادات فايربيز (نفس بياناتك)
+    const firebaseConfig = {
+        apiKey: "AIzaSyC7xpFIK463RYFcOUM1E7A5EIXcTGNJPmE",
+        authDomain: "tuktuk-delivery-e06c0.firebaseapp.com",
+        projectId: "tuktuk-delivery-e06c0",
+        storageBucket: "tuktuk-delivery-e06c0.firebasestorage.app",
+        messagingSenderId: "107492432729",
+        appId: "1:107492432729:web:98675e2d0304dead840a48"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let currentDriver = null;
+
+    function loginDriver() {
+        const code = document.getElementById('driverCode').value;
+        db.ref('drivers').once('value').then(snapshot => {
+            const drivers = snapshot.val();
+            for (let id in drivers) {
+                if (drivers[id].password == code) {
+                    currentDriver = drivers[id];
+                    document.getElementById('loginBox').style.display = 'none';
+                    document.getElementById('driverInterface').style.display = 'block';
+                    document.getElementById('driverName').innerText = currentDriver.name;
+                    listenToOrders();
+                    return;
+                }
+            }
+            document.getElementById('errorMsg').style.display = 'block';
+        });
+    }
+
+    function listenToOrders() {
+        db.ref('orders').on('value', snapshot => {
+            const data = snapshot.val();
+            const list = document.getElementById('ordersList');
+            list.innerHTML = "";
+
+            if (!data) {
+                list.innerHTML = "<p style='text-align:center; color:#999;'>لا يوجد طلبات في انتظارك..</p>";
+                return;
+            }
+
+            Object.keys(data).reverse().forEach(key => {
+                const order = data[key];
+                // الربط: إذا كان الطلب محجوز واسم السائق مطابق
+                if (order.taken && order.driverInfo && order.driverInfo.name === currentDriver.name) {
+                    const isDone = order.status === 'completed';
+                    list.innerHTML += `
+                        <div class="order-card ${isDone ? 'completed' : ''}">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+                                <span class="status-pill">${isDone ? 'منتهي' : 'جاري التنفيذ'}</span>
+                                <small style="color:#999;">${order.time || ''}</small>
+                            </div>
+                            <div class="info-row"><b>الزبون:</b> ${order.name}</div>
+                            <div class="info-row"><b>من:</b> ${order.from}</div>
+                            <div class="info-row"><b>إلى:</b> ${order.to}</div>
+                            <div class="btn-group">
+                                <a href="tel:${order.phone}" class="btn-action btn-tel">اتصال 📞</a>
+                                <button class="btn-action btn-finish" onclick="markAsDone('${key}')" ${isDone ? 'disabled' : ''}>
+                                    ${isDone ? 'تم الإبلاغ' : 'تم الوصول ✅'}
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+        });
+    }
+
+    function markAsDone(orderId) {
+        if (confirm("هل تريد تأكيد الوصول وإبلاغ المطور؟")) {
+            db.ref('orders/' + orderId).update({ status: 'completed' });
+        }
+    }
+</script>
+</body>
+</html>
